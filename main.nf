@@ -8,9 +8,10 @@ workflow {
     file("${params.outdir}/${it}").mkdirs()
   }
 
-  // 2) Derive sample_id from the R1 filename
-  def sample_id = file(params.read1).getSimpleName()
-                       .replaceFirst(/_R1.*\.fq\.gz$/, '')
+// 2) Derive sample_id 
+def sample_id = file(params.read1)
+                   .getSimpleName()           
+                   .replaceFirst(/_R1\.fq\.gz$/, '')
 
   // 3) Build a single tuple of (sample_id, R1, R2)
   read_ch = Channel.of( tuple(
