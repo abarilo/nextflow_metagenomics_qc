@@ -104,39 +104,72 @@ process fastQCtrim {
 }
 
 process trimNanoAdapters {
-  tag "${ nanopore_read.simpleName.replaceFirst(/\\.fastq(\\.gz)?$/, '') }"
-  publishDir "${params.outdir}/trimmed_nano", mode: 'copy'
+    tag "${ nanopore_read.simpleName.replaceFirst(/\\.fastq$/, '') }"
+    publishDir "${params.outdir}/trimmed_nano", mode: 'copy'
 
-  input:
-    path nanopore_read
+    input:
+      path nanopore_read
 
-  output:
-    path "trimmed_*.fastq.gz"
+    output:
+      path "trimmed_*.fastq"
 
-  script:
-  """
-  #!/usr/bin/env bash
-  base=\$(basename ${nanopore_read} .fastq.gz)
-  porechop -i ${nanopore_read} -o trimmed_\${base}.fastq.gz
-  """
+    script:
+    """
+    #!/usr/bin/env bash
+
+    # Strip “.fastq” to get base name, e.g. “nanopore_FAN44009”
+    base=\$(basename ${nanopore_read} .fastq)
+
+    # Run porechop and write an uncompressed FASTQ
+    porechop -i ${nanopore_read} -o trimmed_\${base}.fastq
+    """
 }
 
+
 process trimNanoQuality {
-  tag "${ nanopore_read.simpleName.replaceFirst(/\\.fastq(\\.gz)?$/, '') }"
-  publishDir "${params.outdir}/trimmed_nano", mode: 'copy'
+    tag { trimmed_read.simpleName.replaceFirst(/\\.fastq$/, '') }
+    publishDir "${params.outdir}/trimmed_nano", mode: 'copy'
 
-  input:
-    path nanopore_read
+    input:
+      path trimmed_read
 
-  output:
-    path "chopped_*.fastq.gz"
+    output:
+      path "chopped_*.fastq"
 
-  script:
-  """
-  #!/usr/bin/env bash
-  base=\$(basename ${nanopore_read} .fastq.gz)
-  chopper trim -i ${nanopore_read} -o chopped_\${base}.fastq.gz -q 7 --trim 10 -l 500
-  """
+    script:
+    """
+    #!/usr/bin/env bash
+    set -eu
+
+    # Strip “.fastq” from the trimmed filename to get the base
+    base=\$(basename "${trimmed_read}" .fastq)
+
+    # Run chopper on the uncompressed FASTQ, output an uncompressed FASTQ
+    chopper -i ${trimmed_read} -q 7 --trim 10 -l 500 \
+        > chopped_\${base}.fastq
+    """
+}
+
+
+process nanoPlotTrim {
+    tag "${ nanopore_read.simpleName.replaceFirst(/\\.fastq$/, '') }_trimmed"
+    publishDir "${params.outdir}/nanoplot", mode: 'copy'
+
+    input:
+      path nanopore_read
+
+    output:
+      path "**"
+
+    script:
+    """
+    #!/usr/bin/env bash
+
+    # Strip “.fastq” to get base name, e.g. “chopped_nanopore_FAN44009”
+    base=\$(basename ${nanopore_read} .fastq)
+
+    NanoPlot --fastq ${nanopore_read} --loglength --outdir . --prefix \$base
+    """
 }
 
 process nanoPlot {
@@ -147,24 +180,6 @@ process nanoPlot {
     path nanopore_read
 
   // <-- this captures every file & directory under the work dir
-  output:
-    path "**"
-
-  script:
-  """
-  #!/usr/bin/env bash
-  base=\$(basename ${nanopore_read} .fastq.gz)
-  NanoPlot --fastq ${nanopore_read} --loglength --outdir . --prefix \$base
-  """
-}
-
-process nanoPlotTrim {
-  tag "${ nanopore_read.simpleName.replaceFirst(/\\.fastq(\\.gz)?$/,'') }_trimmed"
-  publishDir "${params.outdir}/nanoplot", mode: 'copy'
-
-  input:
-    path nanopore_read
-
   output:
     path "**"
 
